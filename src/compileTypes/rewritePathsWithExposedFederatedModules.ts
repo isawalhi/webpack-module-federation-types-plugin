@@ -1,19 +1,21 @@
-import path from 'path';
-import fs from 'fs';
+import path from "path";
+import fs from "fs";
 
-import mkdirp from 'mkdirp';
+import mkdirp from "mkdirp";
 
-import { FederationConfig } from '../models';
-import { PREFIX_NOT_FOR_IMPORT } from '../constants';
+import { FederationConfig } from "../models";
+import { PREFIX_NOT_FOR_IMPORT } from "../constants";
 
 import {
-  includeTypesFromNodeModules, substituteAliasedModules,
-} from './helpers';
+  getExposedModulePaths,
+  includeTypesFromNodeModules,
+  substituteAliasedModules,
+} from "./helpers";
 
 export function rewritePathsWithExposedFederatedModules(
   federationConfig: FederationConfig,
   outFile: string,
-  typings: string,
+  typings: string
 ): void {
   const regexDeclareModule = /declare module "(.*)"/g;
   const declaredModulePaths: string[] = [];
@@ -30,20 +32,26 @@ export function rewritePathsWithExposedFederatedModules(
   let typingsUpdated: string = typings;
 
   // Replace and prefix paths by exposed remote names
-  declaredModulePaths.forEach(importPath => {
+  declaredModulePaths.forEach((importPath) => {
     // Aliases are not included in the emitted declarations hence the need to use `endsWith`
-    const [exposedModuleKey, ...exposedModuleNameAliases] = Object.keys(federationConfig.exposes)
-      .filter(key => (
-        federationConfig.exposes[key].endsWith(importPath)
-        || federationConfig.exposes[key].replace(/\.[^./]*$/, '').endsWith(importPath)
-      ))
-      .map(key => key.replace(/^\.\//, ''));
+    const [exposedModuleKey, ...exposedModuleNameAliases] = Object.keys(
+      federationConfig.exposes
+    )
+      .filter((key) => {
+        const expose = federationConfig.exposes[key];
+        return getExposedModulePaths(expose).some(
+          (path) =>
+            path.endsWith(importPath) ||
+            path.replace(/\.[^./]*$/, "").endsWith(importPath)
+        );
+      })
+      .map((key) => key.replace(/^\.\//, ""));
 
     let federatedModulePath = exposedModuleKey
       ? `${federationConfig.name}/${exposedModuleKey}`
       : `${PREFIX_NOT_FOR_IMPORT}/${federationConfig.name}/${importPath}`;
 
-    federatedModulePath = federatedModulePath.replace(/\/index$/, '');
+    federatedModulePath = federatedModulePath.replace(/\/index$/, "");
 
     // language=TypeScript
     const createAliasModule = (modulePath: string) => `
@@ -53,14 +61,23 @@ export function rewritePathsWithExposedFederatedModules(
     `;
 
     typingsUpdated = [
-      typingsUpdated.replace(RegExp(`"${importPath}"`, 'g'), `"${federatedModulePath}"`),
+      typingsUpdated.replace(
+        RegExp(`"${importPath}"`, "g"),
+        `"${federatedModulePath}"`
+      ),
       ...exposedModuleNameAliases.map(createAliasModule),
-    ].join('\n');
+    ].join("\n");
   });
 
-  typingsUpdated = substituteAliasedModules(federationConfig.name, typingsUpdated);
-  typingsUpdated = includeTypesFromNodeModules(federationConfig, typingsUpdated);
+  typingsUpdated = substituteAliasedModules(
+    federationConfig.name,
+    typingsUpdated
+  );
+  typingsUpdated = includeTypesFromNodeModules(
+    federationConfig,
+    typingsUpdated
+  );
 
   mkdirp.sync(path.dirname(outFile));
-  fs.writeFileSync(outFile, typingsUpdated.replace(/\r\n/g, '\n'));
+  fs.writeFileSync(outFile, typingsUpdated.replace(/\r\n/g, "\n"));
 }
