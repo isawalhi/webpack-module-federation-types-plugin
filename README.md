@@ -16,6 +16,9 @@
   * [Feature comparison tables](#feature-comparison-tables)
 <!-- TOC -->
 
+This package is a modified version of the [@cloudbeds/webpack-module-federation-types-plugin](https://github.com/cloudbeds/webpack-module-federation-types-plugin) with additional features and improvements.
+
+
 # module-federation-types-plugin
 
 This package exposes a Webpack plugin and a node CLI command `make-federated-types`.
